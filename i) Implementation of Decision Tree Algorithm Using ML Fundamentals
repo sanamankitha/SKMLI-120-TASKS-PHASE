@@ -1,0 +1,122 @@
+import numpy as np
+import pandas as pd
+
+# Calculate the entropy of a dataset
+def entropy(y):
+    class_labels = np.unique(y)
+    entropy = 0
+    for cls in class_labels:
+        p_cls = len(y[y == cls]) / len(y)
+        entropy -= p_cls * np.log2(p_cls)
+    return entropy
+
+# Calculate the information gain of a split
+def information_gain(parent, left_child, right_child):
+    num_parent = len(parent)
+    num_left = len(left_child)
+    num_right = len(right_child)
+    
+    gain = entropy(parent)
+    gain -= (num_left / num_parent) * entropy(left_child)
+    gain -= (num_right / num_parent) * entropy(right_child)
+    
+    return gain
+
+# Split the dataset based on a feature and a threshold
+def split_dataset(X, y, feature, threshold):
+    left_indices = np.where(X[:, feature] <= threshold)[0]
+    right_indices = np.where(X[:, feature] > threshold)[0]
+    
+    return X[left_indices], y[left_indices], X[right_indices], y[right_indices]
+
+# Determine the best split
+def best_split(X, y):
+    best_gain = -1
+    best_feature = None
+    best_threshold = None
+    
+    for feature in range(X.shape[1]):
+        thresholds = np.unique(X[:, feature])
+        for threshold in thresholds:
+            X_left, y_left, X_right, y_right = split_dataset(X, y, feature, threshold)
+            if len(y_left) == 0 or len(y_right) == 0:
+                continue
+            
+            gain = information_gain(y, y_left, y_right)
+            if gain > best_gain:
+                best_gain = gain
+                best_feature = feature
+                best_threshold = threshold
+    
+    return best_feature, best_threshold
+
+# Define a node class for the tree
+class Node:
+    def __init__(self, feature=None, threshold=None, left=None, right=None, value=None):
+        self.feature = feature
+        self.threshold = threshold
+        self.left = left
+        self.right = right
+        self.value = value
+
+# Build the decision tree recursively
+def build_tree(X, y, depth=0, max_depth=5):
+    num_samples, num_features = X.shape
+    unique_classes = np.unique(y)
+    
+    if len(unique_classes) == 1:
+        return Node(value=unique_classes[0])
+    
+    if depth >= max_depth:
+        return Node(value=np.bincount(y).argmax())
+    
+    feature, threshold = best_split(X, y)
+    if feature is None:
+        return Node(value=np.bincount(y).argmax())
+    
+    X_left, y_left, X_right, y_right = split_dataset(X, y, feature, threshold)
+    left_child = build_tree(X_left, y_left, depth + 1, max_depth)
+    right_child = build_tree(X_right, y_right, depth + 1, max_depth)
+    
+    return Node(feature=feature, threshold=threshold, left=left_child, right=right_child)
+
+# Make predictions with the tree
+def predict_tree(node, X):
+    if node.value is not None:
+        return node.value
+    
+    if X[node.feature] <= node.threshold:
+        return predict_tree(node.left, X)
+    else:
+        return predict_tree(node.right, X)
+
+# Train the decision tree and make predictions
+def decision_tree_train_predict(X_train, y_train, X_test, max_depth=5):
+    tree = build_tree(X_train, y_train, max_depth=max_depth)
+    predictions = [predict_tree(tree, x) for x in X_test]
+    return predictions
+
+# Sample dataset (simple binary classification)
+from sklearn.model_selection import train_test_split
+from sklearn.datasets import load_iris
+
+# Load Iris dataset
+data = load_iris()
+X, y = data.data, data.target
+
+# Binary classification (class 0 vs class 1 and 2)
+y = (y != 0).astype(int)
+
+# Split the dataset
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train and predict
+predictions = decision_tree_train_predict(X_train, y_train, X_test, max_depth=3)
+
+# Print results
+print(f"Predictions: {predictions}")
+print(f"Actual values: {y_test.tolist()}")
+
+# Calculate accuracy
+accuracy = np.mean(predictions == y_test)
+print(f"Accuracy: {accuracy:.2f}")
