@@ -1,0 +1,117 @@
+import java.util.*;
+import java.util.stream.Collectors;
+
+public class NaiveBayesianClassifier {
+    private Map<String, Map<String, Integer>> wordCount;
+    private Map<String, Integer> classCount;
+    private Set<String> vocabulary;
+    private int totalDocuments;
+
+    public NaiveBayesianClassifier() {
+        wordCount = new HashMap<>();
+        classCount = new HashMap<>();
+        vocabulary = new HashSet<>();
+        totalDocuments = 0;
+    }
+
+    // Train the classifier
+    public void train(List<String[]> documents, List<String> labels) {
+        for (int i = 0; i < documents.size(); i++) {
+            String[] words = documents.get(i);
+            String label = labels.get(i);
+
+            classCount.put(label, classCount.getOrDefault(label, 0) + 1);
+            totalDocuments++;
+
+            if (!wordCount.containsKey(label)) {
+                wordCount.put(label, new HashMap<>());
+            }
+
+            for (String word : words) {
+                vocabulary.add(word);
+                Map<String, Integer> wordFreq = wordCount.get(label);
+                wordFreq.put(word, wordFreq.getOrDefault(word, 0) + 1);
+            }
+        }
+    }
+
+    // Predict the class of a new document
+    public String predict(String[] document) {
+        double maxProbability = Double.NEGATIVE_INFINITY;
+        String bestClass = null;
+
+        for (String label : classCount.keySet()) {
+            double classProbability = Math.log(classCount.get(label) / (double) totalDocuments);
+
+            for (String word : document) {
+                int wordFrequency = wordCount.get(label).getOrDefault(word, 0);
+                double wordProbability = Math.log((wordFrequency + 1) / (double) (classCount.get(label) + vocabulary.size()));
+                classProbability += wordProbability;
+            }
+
+            if (classProbability > maxProbability) {
+                maxProbability = classProbability;
+                bestClass = label;
+            }
+        }
+
+        return bestClass;
+    }
+
+    // Calculate accuracy, precision, and recall
+    public void evaluate(List<String[]> testDocuments, List<String> testLabels) {
+        int correct = 0;
+        Map<String, Integer> tp = new HashMap<>();
+        Map<String, Integer> fp = new HashMap<>();
+        Map<String, Integer> fn = new HashMap<>();
+
+        for (int i = 0; i < testDocuments.size(); i++) {
+            String actualLabel = testLabels.get(i);
+            String predictedLabel = predict(testDocuments.get(i));
+
+            if (predictedLabel.equals(actualLabel)) {
+                correct++;
+                tp.put(actualLabel, tp.getOrDefault(actualLabel, 0) + 1);
+            } else {
+                fp.put(predictedLabel, fp.getOrDefault(predictedLabel, 0) + 1);
+                fn.put(actualLabel, fn.getOrDefault(actualLabel, 0) + 1);
+            }
+        }
+
+        double accuracy = correct / (double) testDocuments.size();
+        System.out.println("Accuracy: " + accuracy);
+
+        for (String label : classCount.keySet()) {
+            double precision = tp.getOrDefault(label, 0) / (double) (tp.getOrDefault(label, 0) + fp.getOrDefault(label, 0));
+            double recall = tp.getOrDefault(label, 0) / (double) (tp.getOrDefault(label, 0) + fn.getOrDefault(label, 0));
+            System.out.println("Class: " + label + " Precision: " + precision + " Recall: " + recall);
+        }
+    }
+
+    public static void main(String[] args) {
+        List<String[]> documents = Arrays.asList(
+            new String[]{"the", "cat", "sat"},
+            new String[]{"the", "dog", "barked"},
+            new String[]{"the", "cat", "meowed"},
+            new String[]{"the", "dog", "howled"}
+        );
+
+        List<String> labels = Arrays.asList("cat", "dog", "cat", "dog");
+
+        NaiveBayesianClassifier classifier = new NaiveBayesianClassifier();
+        classifier.train(documents, labels);
+
+        List<String[]> testDocuments = Arrays.asList(
+            new String[]{"the", "cat"},
+            new String[]{"the", "dog"}
+        );
+
+        List<String> testLabels = Arrays.asList("cat", "dog");
+
+        for (String[] doc : testDocuments) {
+            System.out.println("Prediction: " + classifier.predict(doc));
+        }
+
+        classifier.evaluate(testDocuments, testLabels);
+    }
+}
